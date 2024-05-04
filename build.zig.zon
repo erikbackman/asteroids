@@ -1,5 +1,5 @@
 .{
-    .name = "zig-raylib",
+    .name = "asteroids",
     .version = "0.0.1",
     .dependencies = .{
         .raylib = .{
