@@ -36,11 +36,24 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const raylib_optimize = b.option(
+        std.builtin.OptimizeMode,
+        "raylib-optimize",
+        "Prioritize performance, safety, or binary size (-O flag), defaults to value of optimize option",
+    ) orelse optimize;
     const raylib = b.dependency("raylib", .{
         .target = target,
-        .optimize = optimize,
+        .optimize = raylib_optimize,
     });
+
+    //const rlmath = b.dependency("rlmath", .{
+    //    .target = target,
+    //    .optimize = raylib_optimize,
+    //});
     exe.linkLibrary(raylib.artifact("raylib"));
+    //exe.linkLibrary(rlmath.artifact("rlmath"));
+    exe.use_llvm = false;
+    exe.use_lld = false;
 
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default
