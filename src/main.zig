@@ -117,7 +117,7 @@ const Asteroid = struct {
 pub fn spawnAsteroids() !void {
     var prng = std.rand.DefaultPrng.init(64);
     var random = prng.random();
-    const n = 10;
+    const n = 30;
 
     for (0..n) |_| {
         const angle = std.math.tau * random.float(f32);
@@ -192,15 +192,29 @@ pub fn updateAsteroids() void {
     }
 }
 
+pub fn checkCollision() void {
+    for (state.bullets.items) |b| {
+        for (state.asteroids.items, 0..) |a, i| {
+            // TODO: Don't hardcode radius
+            const collides = rl.CheckCollisionCircles(a.pos, 30, b.pos, 5);
+            if (collides) {
+                _ = state.asteroids.swapRemove(i);
+                state.score += 1;
+            }
+        }
+    }
+}
+
 pub fn update(dt: f32) void {
     updateShip(dt);
     updateBullets();
     updateAsteroids();
+    checkCollision();
 }
 
 pub fn draw() !void {
     const len = std.fmt.formatIntBuf(&score_str, state.score, 10, .lower, .{});
-    rl.DrawText(@ptrCast(score_str[0..len]), 2, 2, 22, rl.WHITE);
+    rl.DrawText(@ptrCast(score_str[0..len]), 4, 4, 22, rl.WHITE);
     rl.DrawFPS(win_w - 30, 2);
 
     for (state.bullets.items) |b| {
