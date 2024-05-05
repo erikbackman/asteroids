@@ -161,21 +161,6 @@ pub fn updateShip(dt: f32) void {
     );
 }
 
-pub fn updateAsteroids() void {
-    for (state.asteroids.items) |*a| {
-        var pos = rl.Vector2Add(a.*.pos, a.*.vel);
-        pos.x = @mod(pos.x, win_w);
-        pos.y = @mod(pos.y, win_h);
-        a.pos = pos;
-    }
-}
-
-pub fn update(dt: f32) void {
-    updateShip(dt);
-    updateBullets();
-    updateAsteroids();
-}
-
 pub fn updateBullets() void {
     if (rl.IsKeyPressed(rl.KEY_SPACE)) {
         state.bullets.append(.{
@@ -196,6 +181,21 @@ pub fn updateBullets() void {
             _ = state.bullets.swapRemove(i);
         }
     }
+}
+
+pub fn updateAsteroids() void {
+    for (state.asteroids.items) |*a| {
+        var pos = rl.Vector2Add(a.*.pos, a.*.vel);
+        pos.x = @mod(pos.x, win_w);
+        pos.y = @mod(pos.y, win_h);
+        a.pos = pos;
+    }
+}
+
+pub fn update(dt: f32) void {
+    updateShip(dt);
+    updateBullets();
+    updateAsteroids();
 }
 
 pub fn draw() !void {
