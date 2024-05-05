@@ -9,14 +9,16 @@ const Vec2 = rl.Vector2;
 const Vec3 = rl.Vector3;
 const Mat = rl.Matrix;
 
-const winWidth = 800;
-const winHeight = 600;
+const win_w = 800;
+const win_h = 600;
+
 const pi_half: f32 = std.math.pi / 2.0;
 const zero = Vec2{ .x = 0, .y = 0 };
 const ship_scale = 20;
 
 var ship: Ship = undefined;
 var state: State = undefined;
+var score_str: [20]u8 = std.mem.zeroes([20]u8);
 
 const Bullet = struct {
     ttl: u32,
@@ -34,7 +36,7 @@ const Ship = struct {
     speed: f32 = 100,
     rot: f32 = 0.0,
     rot_speed: f32 = 5,
-    pos: Vec2 = .{ .x = winWidth / 2, .y = winHeight / 2 },
+    pos: Vec2 = .{ .x = win_w / 2, .y = win_h / 2 },
     vel: Vec2 = .{ .x = 0, .y = 0 },
     transform: Mat = rl.MatrixIdentity(),
 
@@ -83,8 +85,8 @@ pub fn update(dt: f32) void {
     if (rl.IsKeyDown(rl.KEY_D)) ship.rot += dt * ship.rot_speed;
 
     ship.pos = rl.Vector2Add(ship.pos, ship.vel);
-    ship.pos.x = @mod(ship.pos.x, winWidth);
-    ship.pos.y = @mod(ship.pos.y, winHeight);
+    ship.pos.x = @mod(ship.pos.x, win_w);
+    ship.pos.y = @mod(ship.pos.y, win_h);
 
     ship.transform = rl.MatrixMultiply(
         rl.MatrixRotate(.{ .x = 0, .y = 0, .z = 1 }, ship.rot),
@@ -118,8 +120,10 @@ pub fn updateBullets() void {
     }
 }
 
-pub fn draw() void {
-    rl.DrawText("Score", 2, 2, 18, rl.WHITE);
+pub fn draw() !void {
+    const len = std.fmt.formatIntBuf(&score_str, state.score, 10, .lower, .{});
+    rl.DrawText(@ptrCast(score_str[0..len]), 2, 2, 22, rl.WHITE);
+    rl.DrawFPS(win_w - 30, 2);
 
     for (state.bullets.items) |b| {
         rl.DrawPixelV(b.pos, rl.WHITE);
@@ -148,7 +152,7 @@ pub fn main() !void {
     ship = Ship{};
     state = State{ .bullets = bullets };
 
-    rl.InitWindow(winWidth, winHeight, "Asteroids");
+    rl.InitWindow(win_w, win_h, "Asteroids");
     defer rl.CloseWindow();
     rl.SetTargetFPS(60);
 
@@ -157,7 +161,7 @@ pub fn main() !void {
         rl.BeginDrawing();
         rl.ClearBackground(rl.BLACK);
         update(dt);
-        draw();
+        try draw();
         rl.EndDrawing();
     }
 }
