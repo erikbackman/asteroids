@@ -39,8 +39,8 @@ const Bullet = struct {
 
 const State = struct {
     score: u32 = 0,
-    bullets: std.ArrayList(Bullet) = undefined,
-    asteroids: std.ArrayList(Asteroid) = undefined,
+    bullets: std.ArrayList(Bullet),
+    asteroids: std.ArrayList(Asteroid),
 };
 
 const Ship = struct {
@@ -91,7 +91,7 @@ const Asteroid = struct {
     scale: AsteroidScale,
     seed: u32,
 
-    pub fn draw(self: @This()) !void {
+    pub fn draw(self: Asteroid) !void {
         var prng = std.rand.DefaultPrng.init(self.seed);
         var random = prng.random();
         var pts = try AsteroidPoints.init(0);
