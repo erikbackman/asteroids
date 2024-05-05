@@ -15,10 +15,21 @@ const win_h = 600;
 const pi_half: f32 = std.math.pi / 2.0;
 const zero = Vec2{ .x = 0, .y = 0 };
 const ship_scale = 20;
+const AsteroidPoints = std.BoundedArray(Vec2, 16);
 
 var ship: Ship = undefined;
 var state: State = undefined;
 var score_str: [20]u8 = std.mem.zeroes([20]u8);
+
+pub fn moveTowards(target: f32, val: f32, delta: f32) f32 {
+    if (std.math.sign(val) == -1) {
+        const new = val + delta;
+        return if (new > target) target else new;
+    } else {
+        const new = val - delta;
+        return if (new < target) target else new;
+    }
+}
 
 const Bullet = struct {
     ttl: u32,
@@ -29,6 +40,7 @@ const Bullet = struct {
 const State = struct {
     score: u32 = 0,
     bullets: std.ArrayList(Bullet) = undefined,
+    asteroids: std.ArrayList(Asteroid) = undefined,
 };
 
 const Ship = struct {
@@ -50,7 +62,7 @@ const Ship = struct {
     },
 
     pub fn draw(self: Ship) void {
-        rl.DrawTriangle(
+        rl.DrawTriangleLines(
             rl.Vector2Transform(self.points[0], self.transform),
             rl.Vector2Transform(self.points[1], self.transform),
             rl.Vector2Transform(self.points[2], self.transform),
@@ -58,7 +70,7 @@ const Ship = struct {
         );
 
         if (self.thrust) {
-            rl.DrawTriangle(
+            rl.DrawTriangleLines(
                 rl.Vector2Transform(self.points[3], self.transform),
                 rl.Vector2Transform(self.points[4], self.transform),
                 rl.Vector2Transform(self.points[5], self.transform),
@@ -68,7 +80,59 @@ const Ship = struct {
     }
 };
 
-pub fn update(dt: f32) void {
+const AsteroidScale = enum(u32) {
+    small = 10,
+    large = 30,
+};
+
+const Asteroid = struct {
+    pos: Vec2,
+    vel: Vec2,
+    scale: AsteroidScale,
+    seed: u32,
+
+    pub fn draw(self: @This()) !void {
+        var prng = std.rand.DefaultPrng.init(self.seed);
+        var random = prng.random();
+        var pts = try AsteroidPoints.init(0);
+
+        const min_radius: u32 = @intFromEnum(self.scale) * 1;
+        const max_radius: u32 = @intFromEnum(self.scale) * 2;
+
+        const n: u32 = 9;
+        const step_size: f32 = std.math.pi * 2 / @as(f32, @floatFromInt(n));
+        var i: u32 = 0;
+        while (i < n) : (i += 1) {
+            const radius: f32 = @floatFromInt(random.intRangeAtMost(u32, min_radius, max_radius));
+            const k: f32 = @floatFromInt(i);
+            const angle = k * step_size;
+            const point = rl.Vector2Add(self.pos, Vec2{ .x = radius * @cos(angle), .y = radius * @sin(angle) });
+            try pts.append(point);
+        }
+        try pts.append(pts.slice()[0]);
+        rl.DrawLineStrip(@ptrCast(&pts), n + 1, rl.WHITE);
+    }
+};
+
+pub fn spawnAsteroids() !void {
+    var prng = std.rand.DefaultPrng.init(64);
+    var random = prng.random();
+    const n = 10;
+
+    for (0..n) |_| {
+        const angle = std.math.tau * random.float(f32);
+        const a = .{
+            .pos = .{ .x = random.float(f32) * win_w, .y = random.float(f32) * win_h },
+            .vel = .{ .x = @cos(angle), .y = @sin(angle) },
+            .scale = .large,
+            .seed = random.int(u32),
+        };
+
+        try state.asteroids.append(a);
+    }
+}
+
+pub fn updateShip(dt: f32) void {
     if (rl.IsKeyDown(rl.KEY_W)) {
         ship.vel = .{
             .x = ship.speed * @cos(ship.rot - pi_half) * dt,
@@ -95,7 +159,21 @@ pub fn update(dt: f32) void {
             rl.MatrixTranslate(ship.pos.x, ship.pos.y, 0),
         ),
     );
+}
+
+pub fn updateAsteroids() void {
+    for (state.asteroids.items) |*a| {
+        var pos = rl.Vector2Add(a.*.pos, a.*.vel);
+        pos.x = @mod(pos.x, win_w);
+        pos.y = @mod(pos.y, win_h);
+        a.pos = pos;
+    }
+}
+
+pub fn update(dt: f32) void {
+    updateShip(dt);
     updateBullets();
+    updateAsteroids();
 }
 
 pub fn updateBullets() void {
@@ -129,17 +207,11 @@ pub fn draw() !void {
         rl.DrawPixelV(b.pos, rl.WHITE);
     }
 
-    ship.draw();
-}
-
-pub fn moveTowards(target: f32, val: f32, delta: f32) f32 {
-    if (std.math.sign(val) == -1) {
-        const new = val + delta;
-        return if (new > target) target else new;
-    } else {
-        const new = val - delta;
-        return if (new < target) target else new;
+    for (state.asteroids.items) |*a| {
+        try a.draw();
     }
+
+    ship.draw();
 }
 
 pub fn main() !void {
@@ -149,8 +221,12 @@ pub fn main() !void {
     var bullets = std.ArrayList(Bullet).init(allocator);
     defer bullets.deinit();
 
+    var asteroids = std.ArrayList(Asteroid).init(allocator);
+    defer asteroids.deinit();
+
     ship = Ship{};
-    state = State{ .bullets = bullets };
+    state = State{ .bullets = bullets, .asteroids = asteroids };
+    try spawnAsteroids();
 
     rl.InitWindow(win_w, win_h, "Asteroids");
     defer rl.CloseWindow();
