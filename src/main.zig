@@ -32,7 +32,7 @@ pub fn moveTowards(target: f32, val: f32, delta: f32) f32 {
 }
 
 const Bullet = struct {
-    ttl: u32,
+    ttl: i32,
     pos: Vec2,
     vel: Vec2,
 };
@@ -177,7 +177,7 @@ pub fn updateBullets() void {
         var b = &state.bullets.items[i];
         b.pos = rl.Vector2Add(b.pos, b.vel);
         b.ttl -= 1;
-        if (b.ttl == 0) {
+        if (b.ttl <= 0) {
             _ = state.bullets.swapRemove(i);
         }
     }
@@ -193,12 +193,13 @@ pub fn updateAsteroids() void {
 }
 
 pub fn checkCollision() void {
-    for (state.bullets.items) |b| {
+    for (state.bullets.items) |*b| {
         for (state.asteroids.items, 0..) |a, i| {
             // TODO: Don't hardcode radius
             const collides = rl.CheckCollisionCircles(a.pos, 30, b.pos, 5);
             if (collides) {
                 _ = state.asteroids.swapRemove(i);
+                b.ttl = 0;
                 state.score += 1;
             }
         }
