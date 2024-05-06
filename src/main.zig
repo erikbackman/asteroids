@@ -193,14 +193,14 @@ pub fn updateAsteroids() void {
 }
 
 pub fn checkCollision() void {
-    for (state.bullets.items) |*b| {
-        for (state.asteroids.items, 0..) |a, i| {
-            // TODO: Don't hardcode radius
+    for (state.asteroids.items, 0..) |*a, i| {
+        // TODO: Don't hardcode radius
+        for (state.bullets.items) |*b| {
             const collides = rl.CheckCollisionCircles(a.pos, 30, b.pos, 5);
             if (collides) {
-                _ = state.asteroids.swapRemove(i);
                 b.ttl = 0;
                 state.score += 1;
+                _ = state.asteroids.orderedRemove(i);
             }
         }
     }
