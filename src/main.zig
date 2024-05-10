@@ -41,6 +41,7 @@ const State = struct {
     score: u32 = 0,
     bullets: std.ArrayList(Bullet),
     asteroids: std.ArrayList(Asteroid),
+    random: std.Random.Xoshiro256,
 };
 
 const Ship = struct {
@@ -92,8 +93,8 @@ const Asteroid = struct {
     seed: u32,
 
     pub fn draw(self: Asteroid) !void {
-        var prng = std.rand.DefaultPrng.init(self.seed);
-        var random = prng.random();
+        state.random.seed(self.seed);
+        var random = state.random.random();
         var pts = try AsteroidPoints.init(0);
 
         const min_radius: u32 = @intFromEnum(self.scale) * 1;
@@ -114,17 +115,16 @@ const Asteroid = struct {
     }
 };
 
-pub fn spawnAsteroids() !void {
-    var prng = std.rand.DefaultPrng.init(64);
-    var random = prng.random();
-    const n = 30;
+pub fn spawnAsteroids(n: u32, scale: AsteroidScale) !void {
+    state.random.jump();
+    var random = state.random.random();
 
     for (0..n) |_| {
         const angle = std.math.tau * random.float(f32);
         const a = .{
             .pos = .{ .x = random.float(f32) * win_w, .y = random.float(f32) * win_h },
             .vel = .{ .x = @cos(angle), .y = @sin(angle) },
-            .scale = .large,
+            .scale = scale,
             .seed = random.int(u32),
         };
 
@@ -159,6 +159,14 @@ pub fn updateShip(dt: f32) void {
             rl.MatrixTranslate(ship.pos.x, ship.pos.y, 0),
         ),
     );
+
+    if (rl.IsKeyPressed(rl.KEY_V)) {
+        if (rl.IsWindowState(rl.FLAG_VSYNC_HINT) == true) {
+            rl.ClearWindowState(rl.FLAG_VSYNC_HINT);
+        } else {
+            rl.SetWindowState(rl.FLAG_VSYNC_HINT);
+        }
+    }
 }
 
 pub fn updateBullets() void {
@@ -178,7 +186,7 @@ pub fn updateBullets() void {
         b.pos = rl.Vector2Add(b.pos, b.vel);
         b.ttl -= 1;
         if (b.ttl <= 0) {
-            _ = state.bullets.swapRemove(i);
+            _ = state.bullets.orderedRemove(i);
         }
     }
 }
@@ -240,11 +248,13 @@ pub fn main() !void {
     defer asteroids.deinit();
 
     ship = Ship{};
-    state = State{ .bullets = bullets, .asteroids = asteroids };
-    try spawnAsteroids();
+    const prng = std.rand.DefaultPrng.init(64);
+    state = State{ .bullets = bullets, .asteroids = asteroids, .random = prng };
+    try spawnAsteroids(30, .large);
 
     rl.InitWindow(win_w, win_h, "Asteroids");
     defer rl.CloseWindow();
+
     rl.SetTargetFPS(60);
 
     while (!rl.WindowShouldClose()) {
