@@ -21,6 +21,10 @@ var ship: Ship = undefined;
 var state: State = undefined;
 var score_str: [20]u8 = std.mem.zeroes([20]u8);
 
+var snd_laser: rl.Sound = undefined;
+var snd_thrust: rl.Sound = undefined;
+var snd_music: rl.Music = undefined;
+
 pub fn moveTowards(target: f32, val: f32, delta: f32) f32 {
     if (std.math.sign(val) == -1) {
         const new = val + delta;
@@ -155,6 +159,9 @@ pub fn updateShip(dt: f32) void {
             .x = ship.speed * @cos(ship.rot - pi_half) * dt,
             .y = ship.speed * @sin(ship.rot - pi_half) * dt,
         };
+        if (!rl.IsSoundPlaying(snd_thrust)) {
+            rl.PlaySound(snd_thrust);
+        }
         ship.thrust = true;
     } else {
         ship.thrust = false;
@@ -196,6 +203,7 @@ pub fn updateBullets() void {
                 .y = 10 * @sin(ship.rot - pi_half),
             },
         }) catch {};
+        rl.PlaySound(snd_laser);
     }
     var i: usize = 0;
     while (i < state.bullets.items.len) : (i += 1) {
@@ -262,6 +270,18 @@ pub fn draw() !void {
 }
 
 pub fn main() !void {
+    rl.InitAudioDevice();
+    defer rl.CloseAudioDevice();
+
+    snd_laser = rl.LoadSound("assets/laser.wav");
+    defer rl.UnloadSound(snd_laser);
+
+    snd_thrust = rl.LoadSound("assets/thrust.wav");
+    defer rl.UnloadSound(snd_thrust);
+
+    snd_music = rl.LoadMusicStream("assets/music.mp3");
+    defer rl.UnloadMusicStream(snd_music);
+
     var arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
     const allocator = arena.allocator();
     defer arena.deinit();
@@ -281,7 +301,10 @@ pub fn main() !void {
 
     rl.SetTargetFPS(60);
 
+    rl.PlayMusicStream(snd_music);
+
     while (!rl.WindowShouldClose()) {
+        rl.UpdateMusicStream(snd_music);
         const dt = rl.GetFrameTime();
         rl.BeginDrawing();
         rl.ClearBackground(rl.BLACK);
