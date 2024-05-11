@@ -21,6 +21,7 @@ pub fn build(b: *std.Build) void {
         .optimize = raylib_optimize,
     });
 
+    exe.linkLibC();
     exe.linkLibrary(raylib.artifact("raylib"));
     exe.use_llvm = false;
     exe.use_lld = false;
@@ -43,6 +44,9 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+
+    exe_unit_tests.linkLibC();
+    exe_unit_tests.linkLibrary(raylib.artifact("raylib"));
 
     const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
 
