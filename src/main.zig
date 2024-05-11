@@ -100,8 +100,8 @@ const Asteroid = struct {
         const min_radius: u32 = @intFromEnum(self.scale) * 1;
         const max_radius: u32 = @intFromEnum(self.scale) * 2;
 
-        const n: u32 = 9;
-        const step_size: f32 = std.math.pi * 2 / @as(f32, @floatFromInt(n));
+        const n: f32 = 9;
+        const step_size: f32 = std.math.pi * 2 / n;
         var i: u32 = 0;
         while (i < n) : (i += 1) {
             const radius: f32 = @floatFromInt(random.intRangeAtMost(u32, min_radius, max_radius));
