@@ -37,6 +37,11 @@ const Bullet = struct {
     vel: Vec2,
 };
 
+const AsteroidScale = enum(u32) {
+    small = 10,
+    large = 30,
+};
+
 const State = struct {
     score: u32 = 0,
     bullets: std.ArrayList(Bullet),
@@ -81,11 +86,6 @@ const Ship = struct {
     }
 };
 
-const AsteroidScale = enum(u32) {
-    small = 10,
-    large = 30,
-};
-
 const Asteroid = struct {
     pos: Vec2,
     vel: Vec2,
@@ -115,14 +115,31 @@ const Asteroid = struct {
     }
 };
 
+pub fn splitAsteroid(asteroid: Asteroid) !void {
+    state.random.jump();
+    var random = state.random.random();
+    var vel = rl.Vector2Scale(asteroid.vel, 2);
+    for (0..2) |_| {
+        const a = .{
+            .pos = asteroid.pos,
+            .vel = vel,
+            .scale = .small,
+            .seed = random.int(u32),
+        };
+        try state.asteroids.append(a);
+        vel = rl.Vector2Rotate(vel, std.math.pi / 4.0);
+    }
+}
+
 pub fn spawnAsteroids(n: u32, scale: AsteroidScale) !void {
     state.random.jump();
     var random = state.random.random();
 
     for (0..n) |_| {
+        const pos = .{ .x = random.float(f32) * win_w, .y = random.float(f32) * win_h };
         const angle = std.math.tau * random.float(f32);
         const a = .{
-            .pos = .{ .x = random.float(f32) * win_w, .y = random.float(f32) * win_h },
+            .pos = pos,
             .vel = .{ .x = @cos(angle), .y = @sin(angle) },
             .scale = scale,
             .seed = random.int(u32),
@@ -201,14 +218,21 @@ pub fn updateAsteroids() void {
 }
 
 pub fn checkCollision() void {
-    for (state.asteroids.items, 0..) |*a, i| {
-        // TODO: Don't hardcode radius
+    var i: usize = 1;
+    const len = state.asteroids.items.len;
+    while (i <= len) : (i += 1) {
+        const j = len - i;
+        const a = state.asteroids.items[j];
         for (state.bullets.items) |*b| {
+            // TODO: Don't hardcode radius
             const collides = rl.CheckCollisionCircles(a.pos, 30, b.pos, 5);
             if (collides) {
                 b.ttl = 0;
                 state.score += 1;
-                _ = state.asteroids.orderedRemove(i);
+                if (a.scale == .large) {
+                    splitAsteroid(a) catch unreachable;
+                }
+                _ = state.asteroids.orderedRemove(j);
             }
         }
     }
