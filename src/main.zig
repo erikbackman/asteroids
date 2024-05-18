@@ -254,16 +254,16 @@ pub fn updateShip(dt: f32) void {
     ship.pos.y = @mod(ship.pos.y, win_h);
 }
 
-pub fn updateBullets() void {
+pub fn updateBullets() !void {
     if (rl.IsKeyPressed(rl.KEY_SPACE)) {
-        state.bullets.append(.{
+        try state.bullets.append(.{
             .ttl = 100,
             .pos = ship.pos,
             .vel = .{
                 .x = 10 * @cos(ship.rot - pi_half),
                 .y = 10 * @sin(ship.rot - pi_half),
             },
-        }) catch {};
+        });
         rl.PlaySound(snd_laser);
     }
     var i: usize = 0;
@@ -286,7 +286,7 @@ pub fn updateAsteroids() void {
     }
 }
 
-pub fn checkCollision() void {
+pub fn checkCollision() !void {
     var i: usize = 1;
     const len = state.asteroids.items.len;
     while (i <= len) : (i += 1) {
@@ -304,9 +304,7 @@ pub fn checkCollision() void {
             if (collides) {
                 b.ttl = 0;
                 state.score += 1;
-                if (a.scale == .large) {
-                    a.split() catch unreachable;
-                }
+                if (a.scale == .large) try a.split();
                 _ = state.asteroids.orderedRemove(j);
             }
         }
@@ -326,9 +324,9 @@ pub fn update(dt: f32) !void {
     }
 
     updateShip(dt);
-    updateBullets();
+    try updateBullets();
     updateAsteroids();
-    checkCollision();
+    try checkCollision();
 }
 
 // TODO: This isn't great.
