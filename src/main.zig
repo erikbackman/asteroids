@@ -173,10 +173,10 @@ const Asteroid = struct {
         const min_radius: u32 = @intFromEnum(self.scale) * 1;
         const max_radius: u32 = @intFromEnum(self.scale) * 2;
 
-        const n: f32 = 9;
-        const step_size: f32 = std.math.tau / n;
+        const sides: f32 = 9;
+        const step_size: f32 = std.math.tau / sides;
         var i: u32 = 0;
-        while (i < n) : (i += 1) {
+        while (i < sides) : (i += 1) {
             const radius: f32 = @floatFromInt(random.intRangeAtMost(u32, min_radius, max_radius));
             const k: f32 = @floatFromInt(i);
             const angle = k * step_size;
@@ -184,7 +184,7 @@ const Asteroid = struct {
             try pts.append(point);
         }
         try pts.append(pts.slice()[0]);
-        rl.DrawLineStrip(@ptrCast(&pts), n + 1, rl.WHITE);
+        rl.DrawLineStrip(@ptrCast(&pts), sides + 1, rl.WHITE);
     }
 
     pub fn split(asteroid: Asteroid) !void {
