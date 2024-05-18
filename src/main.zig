@@ -109,44 +109,6 @@ const State = struct {
     }
 };
 
-// TODO: This isn't great.
-fn drawDeath(_: f32) void {
-    const vr: Vec2 = .{ .x = @cos((-1 * std.math.pi / 4.0)), .y = @sin((-1 * std.math.pi / 4.0)) };
-    const vl: Vec2 = .{ .x = @cos((-3 * std.math.pi / 4.0)), .y = @sin((-3 * std.math.pi / 4.0)) };
-    const vb: Vec2 = .{ .x = @cos((std.math.pi / 2.0)), .y = @sin((std.math.pi / 2.0)) };
-
-    const transform = struct {
-        pub fn apply(vec: Vec2, vel: Vec2, d: f32) Vec2 {
-            const t = rl.MatrixMultiply(
-                rl.MatrixRotate(.{ .x = 0, .y = 0, .z = 1 }, ship.rot + d * 0.1),
-                rl.MatrixMultiply(
-                    rl.MatrixScale(ship_scale, ship_scale, ship_scale),
-                    rl.MatrixTranslate(ship.pos.x + vel.x * d, ship.pos.y + vel.y * d, 0),
-                ),
-            );
-            return rl.Vector2Transform(vec, t);
-        }
-    };
-
-    rl.DrawLineV(
-        transform.apply(ship.points[0], vr, state.death_time),
-        transform.apply(ship.points[2], vr, state.death_time),
-        rl.WHITE,
-    );
-
-    rl.DrawLineV(
-        transform.apply(ship.points[0], vl, state.death_time),
-        transform.apply(ship.points[1], vl, state.death_time),
-        rl.WHITE,
-    );
-
-    rl.DrawLineV(
-        transform.apply(ship.points[1], vb, state.death_time),
-        transform.apply(ship.points[2], vb, state.death_time),
-        rl.WHITE,
-    );
-}
-
 const Ship = struct {
     thrust: bool = false,
     dead: bool = false,
@@ -360,6 +322,44 @@ pub fn update(dt: f32) !void {
     updateBullets();
     updateAsteroids();
     checkCollision();
+}
+
+// TODO: This isn't great.
+fn drawDeath(_: f32) void {
+    const vr: Vec2 = .{ .x = @cos((-1 * std.math.pi / 4.0)), .y = @sin((-1 * std.math.pi / 4.0)) };
+    const vl: Vec2 = .{ .x = @cos((-3 * std.math.pi / 4.0)), .y = @sin((-3 * std.math.pi / 4.0)) };
+    const vb: Vec2 = .{ .x = @cos((std.math.pi / 2.0)), .y = @sin((std.math.pi / 2.0)) };
+
+    const transform = struct {
+        pub fn apply(vec: Vec2, vel: Vec2, d: f32) Vec2 {
+            const t = rl.MatrixMultiply(
+                rl.MatrixRotate(.{ .x = 0, .y = 0, .z = 1 }, ship.rot + d * 0.1),
+                rl.MatrixMultiply(
+                    rl.MatrixScale(ship_scale, ship_scale, ship_scale),
+                    rl.MatrixTranslate(ship.pos.x + vel.x * d, ship.pos.y + vel.y * d, 0),
+                ),
+            );
+            return rl.Vector2Transform(vec, t);
+        }
+    };
+
+    rl.DrawLineV(
+        transform.apply(ship.points[0], vr, state.death_time),
+        transform.apply(ship.points[2], vr, state.death_time),
+        rl.WHITE,
+    );
+
+    rl.DrawLineV(
+        transform.apply(ship.points[0], vl, state.death_time),
+        transform.apply(ship.points[1], vl, state.death_time),
+        rl.WHITE,
+    );
+
+    rl.DrawLineV(
+        transform.apply(ship.points[1], vb, state.death_time),
+        transform.apply(ship.points[2], vb, state.death_time),
+        rl.WHITE,
+    );
 }
 
 pub fn draw(dt: f32) !void {
