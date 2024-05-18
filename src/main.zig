@@ -209,7 +209,14 @@ pub fn spawnAsteroids(n: u32, scale: AsteroidScale) !void {
     var random = state.random.random();
 
     for (0..n) |_| {
-        const pos = .{ .x = random.float(f32) * win_w, .y = random.float(f32) * win_h };
+        const padding: u32 = 50;
+        const max_x = (win_w / 2) - padding;
+        const max_y = (win_h / 2) - padding;
+        const sign1: i32 = std.math.pow(i32, -1, random.intRangeAtMost(i32, 1, 2));
+        const sign2: i32 = std.math.pow(i32, -1, random.intRangeAtMost(i32, 1, 2));
+        const x: f32 = @floatFromInt(random.intRangeAtMost(i32, 0, max_x) * sign1);
+        const y: f32 = @floatFromInt(random.intRangeAtMost(i32, 0, max_y) * sign2);
+        const pos = .{ .x = x, .y = y };
         const angle = std.math.tau * random.float(f32);
         const a = .{
             .pos = pos,
