@@ -53,6 +53,10 @@ const State = struct {
     random: std.Random.Xoshiro256,
 };
 
+fn makeVec3(vec: Vec2) Vec3 {
+    return .{ .x = vec.x, .y = vec.y, .z = 0 };
+}
+
 const Ship = struct {
     thrust: bool = false,
     speed: f32 = 100,
@@ -70,8 +74,18 @@ const Ship = struct {
         .{ .x = 0.4, .y = 0.5 },
         .{ .x = -0.4, .y = 0.5 },
     },
+    p: Vec2 = .{ .x = win_w / 2, .y = win_h / 2 },
+    u: Vec2 = .{ .x = win_w / 2, .y = win_h / 2 },
 
-    pub fn draw(self: Ship) void {
+    pub fn draw(self: *Ship, _: f32) void {
+        self.transform = rl.MatrixMultiply(
+            rl.MatrixRotate(.{ .x = 0, .y = 0, .z = 1 }, self.rot),
+            rl.MatrixMultiply(
+                rl.MatrixScale(ship_scale, ship_scale, ship_scale),
+                rl.MatrixTranslate(ship.pos.x, ship.pos.y, 0),
+            ),
+        );
+
         rl.DrawTriangleLines(
             rl.Vector2Transform(self.points[0], self.transform),
             rl.Vector2Transform(self.points[1], self.transform),
@@ -117,23 +131,23 @@ const Asteroid = struct {
         try pts.append(pts.slice()[0]);
         rl.DrawLineStrip(@ptrCast(&pts), n + 1, rl.WHITE);
     }
-};
 
-pub fn splitAsteroid(asteroid: Asteroid) !void {
-    state.random.jump();
-    var random = state.random.random();
-    var vel = rl.Vector2Scale(asteroid.vel, 2);
-    for (0..2) |_| {
-        const a = .{
-            .pos = asteroid.pos,
-            .vel = vel,
-            .scale = .small,
-            .seed = random.int(u32),
-        };
-        try state.asteroids.append(a);
-        vel = rl.Vector2Rotate(vel, std.math.pi / 4.0);
+    pub fn split(asteroid: Asteroid) !void {
+        state.random.jump();
+        var random = state.random.random();
+        var vel = rl.Vector2Scale(asteroid.vel, 2);
+        for (0..2) |_| {
+            const a = .{
+                .pos = asteroid.pos,
+                .vel = vel,
+                .scale = .small,
+                .seed = random.int(u32),
+            };
+            try state.asteroids.append(a);
+            vel = rl.Vector2Rotate(vel, std.math.pi / 4.0);
+        }
     }
-}
+};
 
 pub fn spawnAsteroids(n: u32, scale: AsteroidScale) !void {
     state.random.jump();
@@ -175,22 +189,6 @@ pub fn updateShip(dt: f32) void {
     ship.pos = rl.Vector2Add(ship.pos, ship.vel);
     ship.pos.x = @mod(ship.pos.x, win_w);
     ship.pos.y = @mod(ship.pos.y, win_h);
-
-    ship.transform = rl.MatrixMultiply(
-        rl.MatrixRotate(.{ .x = 0, .y = 0, .z = 1 }, ship.rot),
-        rl.MatrixMultiply(
-            rl.MatrixScale(ship_scale, ship_scale, ship_scale),
-            rl.MatrixTranslate(ship.pos.x, ship.pos.y, 0),
-        ),
-    );
-
-    if (rl.IsKeyPressed(rl.KEY_V)) {
-        if (rl.IsWindowState(rl.FLAG_VSYNC_HINT) == true) {
-            rl.ClearWindowState(rl.FLAG_VSYNC_HINT);
-        } else {
-            rl.SetWindowState(rl.FLAG_VSYNC_HINT);
-        }
-    }
 }
 
 pub fn updateBullets() void {
@@ -238,7 +236,7 @@ pub fn checkCollision() void {
                 b.ttl = 0;
                 state.score += 1;
                 if (a.scale == .large) {
-                    splitAsteroid(a) catch unreachable;
+                    a.split() catch unreachable;
                 }
                 _ = state.asteroids.orderedRemove(j);
             }
@@ -253,20 +251,21 @@ pub fn update(dt: f32) void {
     checkCollision();
 }
 
-pub fn draw() !void {
+pub fn draw(dt: f32) !void {
     const len = std.fmt.formatIntBuf(&score_str, state.score, 10, .lower, .{});
     rl.DrawText(@ptrCast(score_str[0..len]), 4, 4, 22, rl.WHITE);
     rl.DrawFPS(win_w - 30, 2);
 
     for (state.bullets.items) |b| {
-        rl.DrawPixelV(b.pos, rl.WHITE);
+        //rl.DrawPixelV(b.pos, rl.WHITE);
+        rl.DrawCircleV(b.pos, 2, rl.WHITE);
     }
 
     for (state.asteroids.items) |*a| {
         try a.draw();
     }
 
-    ship.draw();
+    ship.draw(dt);
 }
 
 pub fn main() !void {
@@ -285,6 +284,7 @@ pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
     const allocator = arena.allocator();
     defer arena.deinit();
+
     var bullets = std.ArrayList(Bullet).init(allocator);
     defer bullets.deinit();
 
@@ -298,18 +298,19 @@ pub fn main() !void {
 
     rl.InitWindow(win_w, win_h, "Asteroids");
     defer rl.CloseWindow();
+    rl.SetWindowState(rl.FLAG_WINDOW_RESIZABLE);
 
     rl.SetTargetFPS(60);
 
     rl.PlayMusicStream(snd_music);
 
     while (!rl.WindowShouldClose()) {
-        rl.UpdateMusicStream(snd_music);
         const dt = rl.GetFrameTime();
+        rl.UpdateMusicStream(snd_music);
         rl.BeginDrawing();
         rl.ClearBackground(rl.BLACK);
         update(dt);
-        try draw();
+        try draw(dt);
         rl.EndDrawing();
     }
 }
