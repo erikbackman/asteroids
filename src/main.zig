@@ -333,7 +333,7 @@ pub fn update(dt: f32) !void {
 fn drawDeath(_: f32) void {
     const vr: Vec2 = .{ .x = @cos(-1 * std.math.pi / 4.0), .y = @sin(-1 * std.math.pi / 4.0) };
     const vl: Vec2 = .{ .x = @cos(-3 * std.math.pi / 4.0), .y = @sin(-3 * std.math.pi / 4.0) };
-    const vb: Vec2 = .{ .x = @cos((std.math.pi / 2.0)), .y = @sin((std.math.pi / 2.0)) };
+    const vb: Vec2 = .{ .x = @cos(std.math.pi / 2.0), .y = @sin(std.math.pi / 2.0) };
 
     const transform = struct {
         pub fn apply(vec: Vec2, vel: Vec2, d: f32) Vec2 {
