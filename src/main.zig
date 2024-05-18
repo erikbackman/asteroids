@@ -62,6 +62,7 @@ const Particle = struct {
 
 const State = struct {
     score: u32 = 0,
+    death_time: f32 = 0,
     bullets: std.ArrayList(Bullet),
     asteroids: std.ArrayList(Asteroid),
     particles: std.ArrayList(Particle),
@@ -90,6 +91,7 @@ const State = struct {
     pub fn reset(self: *State) !void {
         self.score = 0;
         @memset(&score_str, 0);
+        self.death_time = 0;
         self.bullets.clearRetainingCapacity();
         self.asteroids.clearRetainingCapacity();
         ship.pos = .{ .x = win_w / 2, .y = win_h / 2 };
@@ -107,8 +109,51 @@ const State = struct {
     }
 };
 
+fn makeVec2(vec3: Vec3) Vec2 {
+    return .{ .x = vec3.x, .y = vec3.y };
+}
+
+// TODO: This isn't great.
+fn drawDeath(_: f32) void {
+    const vr: Vec2 = .{ .x = @cos((-1 * std.math.pi / 4.0)), .y = @sin((-1 * std.math.pi / 4.0)) };
+    const vl: Vec2 = .{ .x = @cos((-3 * std.math.pi / 4.0)), .y = @sin((-3 * std.math.pi / 4.0)) };
+    const vb: Vec2 = .{ .x = @cos((std.math.pi / 2.0)), .y = @sin((std.math.pi / 2.0)) };
+
+    const transform = struct {
+        pub fn apply(vec: Vec2, vel: Vec2, d: f32) Vec2 {
+            const t = rl.MatrixMultiply(
+                rl.MatrixRotate(.{ .x = 0, .y = 0, .z = 1 }, ship.rot + d * 0.1),
+                rl.MatrixMultiply(
+                    rl.MatrixScale(ship_scale, ship_scale, ship_scale),
+                    rl.MatrixTranslate(ship.pos.x + vel.x * d, ship.pos.y + vel.y * d, 0),
+                ),
+            );
+            return rl.Vector2Transform(vec, t);
+        }
+    };
+
+    rl.DrawLineV(
+        transform.apply(ship.points[0], vr, state.death_time),
+        transform.apply(ship.points[2], vr, state.death_time),
+        rl.WHITE,
+    );
+
+    rl.DrawLineV(
+        transform.apply(ship.points[0], vl, state.death_time),
+        transform.apply(ship.points[1], vl, state.death_time),
+        rl.WHITE,
+    );
+
+    rl.DrawLineV(
+        transform.apply(ship.points[1], vb, state.death_time),
+        transform.apply(ship.points[2], vb, state.death_time),
+        rl.WHITE,
+    );
+}
+
 const Ship = struct {
     thrust: bool = false,
+    dead: bool = false,
     speed: f32 = 100,
     rot: f32 = 0.0,
     rot_speed: f32 = 5,
@@ -124,6 +169,10 @@ const Ship = struct {
         .{ .x = 0.4, .y = 0.5 },
         .{ .x = -0.4, .y = 0.5 },
     },
+
+    l: Vec2 = rl.Vector2Zero(),
+    r: Vec2 = rl.Vector2Zero(),
+    b: Vec2 = rl.Vector2Zero(),
 
     pub fn draw(self: *Ship, _: f32) void {
         self.transform = rl.MatrixMultiply(
@@ -216,6 +265,7 @@ pub fn spawnAsteroids(n: u32, scale: AsteroidScale) !void {
 }
 
 pub fn updateShip(dt: f32) void {
+    if (ship.dead) return;
     if (rl.IsKeyDown(rl.KEY_W)) {
         ship.vel = .{
             .x = ship.speed * @cos(ship.rot - pi_half) * dt,
@@ -280,8 +330,7 @@ pub fn checkCollision() void {
         const a_scale: f32 = @floatFromInt(@intFromEnum(a.scale));
 
         if (rl.CheckCollisionCircles(a.pos, a_scale, ship.pos, ship_scale)) {
-            state.reset() catch unreachable;
-            spawnAsteroids(30, .large) catch unreachable;
+            ship.dead = true;
             break;
         }
 
@@ -299,7 +348,18 @@ pub fn checkCollision() void {
     }
 }
 
-pub fn update(dt: f32) void {
+pub fn update(dt: f32) !void {
+    if (ship.dead) {
+        state.death_time += 0.5;
+        if (state.death_time >= 50) {
+            ship.dead = false;
+            state.death_time = 0;
+            try state.reset();
+            try spawnAsteroids(30, .large);
+        }
+        return;
+    }
+
     updateShip(dt);
     updateBullets();
     updateAsteroids();
@@ -323,7 +383,11 @@ pub fn draw(dt: f32) !void {
         p.draw();
     }
 
-    ship.draw(dt);
+    if (ship.dead) {
+        drawDeath(dt);
+    } else {
+        ship.draw(dt);
+    }
 }
 
 pub fn main() !void {
@@ -361,7 +425,7 @@ pub fn main() !void {
         rl.UpdateMusicStream(snd_music);
         rl.BeginDrawing();
         rl.ClearBackground(rl.BLACK);
-        update(dt);
+        try update(dt);
         try draw(dt);
         rl.EndDrawing();
     }
