@@ -15,6 +15,7 @@ const win_h = 600;
 const pi_half: f32 = std.math.pi / 2.0;
 const zero = Vec2{ .x = 0, .y = 0 };
 const ship_scale = 20;
+
 const AsteroidPoints = std.BoundedArray(Vec2, 16);
 
 var ship: Ship = undefined;
@@ -166,7 +167,7 @@ const Asteroid = struct {
         const max_radius: u32 = @intFromEnum(self.scale) * 2;
 
         const n: f32 = 9;
-        const step_size: f32 = std.math.pi * 2 / n;
+        const step_size: f32 = std.math.tau / n;
         var i: u32 = 0;
         while (i < n) : (i += 1) {
             const radius: f32 = @floatFromInt(random.intRangeAtMost(u32, min_radius, max_radius));
