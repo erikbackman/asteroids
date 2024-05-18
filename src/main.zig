@@ -35,6 +35,10 @@ pub fn moveTowards(target: f32, val: f32, delta: f32) f32 {
     }
 }
 
+fn makeVec3(vec: Vec2) Vec3 {
+    return .{ .x = vec.x, .y = vec.y, .z = 0 };
+}
+
 const Bullet = struct {
     ttl: i32,
     pos: Vec2,
@@ -46,16 +50,61 @@ const AsteroidScale = enum(u32) {
     large = 30,
 };
 
+const Particle = struct {
+    pos: Vec2,
+    vel: Vec2,
+
+    pub fn draw(self: Particle) void {
+        rl.DrawPixelV(self.pos, rl.WHITE);
+    }
+};
+
 const State = struct {
     score: u32 = 0,
     bullets: std.ArrayList(Bullet),
     asteroids: std.ArrayList(Asteroid),
+    particles: std.ArrayList(Particle),
     random: std.Random.Xoshiro256,
-};
 
-fn makeVec3(vec: Vec2) Vec3 {
-    return .{ .x = vec.x, .y = vec.y, .z = 0 };
-}
+    pub fn init(allocator: std.mem.Allocator) !State {
+        const bullets = std.ArrayList(Bullet).init(allocator);
+        const asteroids = std.ArrayList(Asteroid).init(allocator);
+        const particles = std.ArrayList(Particle).init(allocator);
+        const prng = std.rand.DefaultPrng.init(64);
+
+        return .{
+            .bullets = bullets,
+            .asteroids = asteroids,
+            .particles = particles,
+            .random = prng,
+        };
+    }
+
+    pub fn deinit(self: *State) void {
+        self.bullets.deinit();
+        self.asteroids.deinit();
+        self.particles.deinit();
+    }
+
+    pub fn reset(self: *State) !void {
+        self.score = 0;
+        @memset(&score_str, 0);
+        self.bullets.clearRetainingCapacity();
+        self.asteroids.clearRetainingCapacity();
+        ship.pos = .{ .x = win_w / 2, .y = win_h / 2 };
+        ship.vel = rl.Vector2Zero();
+        ship.rot = 0.0;
+    }
+
+    pub fn spawnParticle(self: *State, pos: Vec2) !void {
+        const r = self.random.random();
+        const p = .{
+            .pos = pos,
+            .vel = .{ .x = r.float(f32), .y = r.float(f32) },
+        };
+        try self.particles.append(p);
+    }
+};
 
 const Ship = struct {
     thrust: bool = false,
@@ -227,9 +276,16 @@ pub fn checkCollision() void {
     while (i <= len) : (i += 1) {
         const j = len - i;
         const a = state.asteroids.items[j];
+        const a_scale: f32 = @floatFromInt(@intFromEnum(a.scale));
+
+        if (rl.CheckCollisionCircles(a.pos, a_scale, ship.pos, ship_scale)) {
+            state.reset() catch unreachable;
+            spawnAsteroids(30, .large) catch unreachable;
+            break;
+        }
+
         for (state.bullets.items) |*b| {
-            // TODO: Don't hardcode radius
-            const collides = rl.CheckCollisionCircles(a.pos, 30, b.pos, 5);
+            const collides = rl.CheckCollisionCircles(a.pos, a_scale, b.pos, 5);
             if (collides) {
                 b.ttl = 0;
                 state.score += 1;
@@ -259,8 +315,11 @@ pub fn draw(dt: f32) !void {
         rl.DrawCircleV(b.pos, 2, rl.WHITE);
     }
 
-    for (state.asteroids.items) |*a| {
-        try a.draw();
+    for (state.asteroids.items) |*a| try a.draw();
+
+    for (state.particles.items) |*p| {
+        p.pos = rl.Vector2Add(p.pos, p.vel);
+        p.draw();
     }
 
     ship.draw(dt);
@@ -283,15 +342,9 @@ pub fn main() !void {
     const allocator = arena.allocator();
     defer arena.deinit();
 
-    var bullets = std.ArrayList(Bullet).init(allocator);
-    defer bullets.deinit();
-
-    var asteroids = std.ArrayList(Asteroid).init(allocator);
-    defer asteroids.deinit();
-
     ship = Ship{};
-    const prng = std.rand.DefaultPrng.init(64);
-    state = State{ .bullets = bullets, .asteroids = asteroids, .random = prng };
+    state = try State.init(allocator);
+    defer state.deinit();
     try spawnAsteroids(30, .large);
 
     rl.InitWindow(win_w, win_h, "Asteroids");
