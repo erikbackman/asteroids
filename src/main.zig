@@ -74,8 +74,6 @@ const Ship = struct {
         .{ .x = 0.4, .y = 0.5 },
         .{ .x = -0.4, .y = 0.5 },
     },
-    p: Vec2 = .{ .x = win_w / 2, .y = win_h / 2 },
-    u: Vec2 = .{ .x = win_w / 2, .y = win_h / 2 },
 
     pub fn draw(self: *Ship, _: f32) void {
         self.transform = rl.MatrixMultiply(
