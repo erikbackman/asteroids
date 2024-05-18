@@ -109,10 +109,6 @@ const State = struct {
     }
 };
 
-fn makeVec2(vec3: Vec3) Vec2 {
-    return .{ .x = vec3.x, .y = vec3.y };
-}
-
 // TODO: This isn't great.
 fn drawDeath(_: f32) void {
     const vr: Vec2 = .{ .x = @cos((-1 * std.math.pi / 4.0)), .y = @sin((-1 * std.math.pi / 4.0)) };
@@ -179,7 +175,7 @@ const Ship = struct {
             rl.MatrixRotate(.{ .x = 0, .y = 0, .z = 1 }, self.rot),
             rl.MatrixMultiply(
                 rl.MatrixScale(ship_scale, ship_scale, ship_scale),
-                rl.MatrixTranslate(ship.pos.x, ship.pos.y, 0),
+                rl.MatrixTranslate(self.pos.x, self.pos.y, 0),
             ),
         );
 
