@@ -15,11 +15,11 @@ const win_h = 600;
 const pi_half: f32 = std.math.pi / 2.0;
 const zero = Vec2{ .x = 0, .y = 0 };
 const ship_scale = 20;
-const asteroid_init_count = 20;
+const asteroid_init_count = 2;
 
 const AsteroidPoints = std.BoundedArray(Vec2, 16);
 
-const alien_score_threshold = 30;
+const alien_score_threshold = 20;
 
 var ship: Ship = undefined;
 var state: State = undefined;
@@ -69,21 +69,24 @@ const State = struct {
     bullets: std.ArrayList(Bullet),
     enemy_bullets: std.ArrayList(Bullet),
     asteroids: std.ArrayList(Asteroid),
-    aliens: std.ArrayList(Alien),
+    alien: Alien,
     random: std.Random.Xoshiro256,
 
     pub fn init(allocator: std.mem.Allocator) !State {
         const bullets = std.ArrayList(Bullet).init(allocator);
         const enemy_bullets = std.ArrayList(Bullet).init(allocator);
         const asteroids = std.ArrayList(Asteroid).init(allocator);
-        const aliens = std.ArrayList(Alien).init(allocator);
         const prng = std.rand.DefaultPrng.init(2045);
 
         return .{
+            .alien = Alien{
+                .pos = .{ .x = 0, .y = 0 },
+                .dead = true,
+                .rng = std.rand.DefaultPrng.init(512),
+            },
             .bullets = bullets,
             .enemy_bullets = enemy_bullets,
             .asteroids = asteroids,
-            .aliens = aliens,
             .random = prng,
         };
     }
@@ -101,7 +104,7 @@ const State = struct {
         self.bullets.clearRetainingCapacity();
         self.enemy_bullets.clearRetainingCapacity();
         self.asteroids.clearRetainingCapacity();
-        self.aliens.clearRetainingCapacity();
+        self.alien.dead = true;
         ship.pos = .{ .x = win_w / 2, .y = win_h / 2 };
         ship.vel = rl.Vector2Zero();
         ship.rot = 0.0;
@@ -247,13 +250,36 @@ const Alien = struct {
     seed: u64 = 64,
     dead: bool = false,
 
+    pts: [15]Vec2 = .{
+        .{ .x = 1.0, .y = 0.0 },
+        .{ .x = 0.8, .y = 0.3 },
+        .{ .x = 0.4, .y = 0.3 },
+        .{ .x = 0.3, .y = 0.7 },
+        .{ .x = -0.3, .y = 0.7 },
+        .{ .x = -0.4, .y = 0.3 },
+        .{ .x = -0.8, .y = 0.3 },
+        .{ .x = -1.0, .y = 0.0 },
+        .{ .x = -0.8, .y = -0.3 },
+        .{ .x = -0.4, .y = -0.3 },
+        .{ .x = -0.3, .y = -0.7 },
+        .{ .x = 0.3, .y = -0.7 },
+        .{ .x = 0.4, .y = -0.3 },
+        .{ .x = 0.8, .y = -0.3 },
+        .{ .x = 1.0, .y = 0.0 },
+    },
+
     pub fn draw(self: Alien) !void {
         const t = rl.MatrixMultiply(
             rl.MatrixScale(ship_scale, ship_scale, ship_scale),
             rl.MatrixTranslate(self.pos.x, self.pos.y, 0),
         );
 
-        drawTrapezoid(t);
+        var pts: [15]Vec2 = undefined;
+        for (self.pts, 0..) |p, i| {
+            pts[i] = rl.Vector2Transform(p, t);
+        }
+
+        rl.DrawLineStrip(&pts, 15, rl.WHITE);
     }
 
     pub fn update(self: *Alien, dt: f32) !void {
@@ -275,11 +301,9 @@ const Alien = struct {
         self.cooldown = moveTowards(0, self.cooldown, dt);
     }
 
-    pub fn spawn(_: u32) !void {
-        try state.aliens.append(.{
-            .pos = .{ .x = 100, .y = 100 },
-            .rng = std.rand.DefaultPrng.init(1024),
-        });
+    pub fn spawn(pos: Vec2) !void {
+        state.alien.pos = pos;
+        state.alien.dead = false;
     }
 };
 
@@ -386,8 +410,8 @@ pub fn checkCollision() !void {
         const a_scale: f32 = @floatFromInt(@intFromEnum(a.scale));
 
         if (rl.CheckCollisionCircles(a.pos, a_scale, ship.pos, ship_scale)) {
-            ship.dead = true;
-            break;
+            //ship.dead = true;
+            //break;
         }
 
         for (state.bullets.items) |*b| {
@@ -401,11 +425,11 @@ pub fn checkCollision() !void {
         }
     }
 
-    for (state.aliens.items) |*a| {
-        for (state.bullets.items) |*b| {
-            if (rl.CheckCollisionCircles(b.pos, 5, a.pos, ship_scale)) {
-                a.dead = true;
-            }
+    for (state.bullets.items) |*b| {
+        const a = &state.alien;
+        if (rl.CheckCollisionCircles(b.pos, 5, a.pos, ship_scale)) {
+            a.dead = true;
+            state.score += 5;
         }
     }
 
@@ -432,12 +456,10 @@ pub fn update(dt: f32) !void {
     updateShip(dt);
     try updateBullets();
     updateAsteroids();
-    for (state.aliens.items) |*a| {
-        if (!a.dead) try a.update(dt);
-    }
+    if (!state.alien.dead) try state.alien.update(dt);
 
-    if (state.score > alien_score_threshold and state.aliens.items.len == 0) {
-        try Alien.spawn(2);
+    if (state.score > alien_score_threshold and state.alien.dead) {
+        try Alien.spawn(.{ .x = state.random.random().float(f32), .y = state.random.random().float(f32) });
     }
 
     try checkCollision();
@@ -496,9 +518,7 @@ pub fn draw(dt: f32) !void {
 
     for (state.asteroids.items) |*a| try a.draw();
 
-    for (state.aliens.items) |*a| {
-        if (!a.dead) try a.draw();
-    }
+    if (!state.alien.dead) try state.alien.draw();
 
     if (ship.dead) {
         drawDeath(dt);
