@@ -15,7 +15,7 @@ const win_h = 600;
 const pi_half: f32 = std.math.pi / 2.0;
 const zero = Vec2{ .x = 0, .y = 0 };
 const ship_scale = 20;
-const asteroid_init_count = 2;
+const asteroid_init_count = 20;
 
 const AsteroidPoints = std.BoundedArray(Vec2, 16);
 
@@ -52,15 +52,6 @@ const Bullet = struct {
 const AsteroidScale = enum(u32) {
     small = 10,
     large = 30,
-};
-
-const Particle = struct {
-    pos: Vec2,
-    vel: Vec2,
-
-    pub fn draw(self: Particle) void {
-        rl.DrawPixelV(self.pos, rl.WHITE);
-    }
 };
 
 const State = struct {
