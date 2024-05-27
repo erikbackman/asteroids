@@ -194,45 +194,6 @@ const Asteroid = struct {
     }
 };
 
-// TODO: This is temporary draw code for aliens
-fn drawTrapezoid(transform: rl.Matrix) void {
-    const points: [6]Vec2 = .{
-        //
-        .{ .x = 0.5, .y = -0.5 },
-        .{ .x = 0.5, .y = 0.5 },
-        .{ .x = 1.5, .y = 0.5 },
-        //
-        .{ .x = -0.5, .y = -0.5 },
-        .{ .x = -0.5, .y = 0.5 },
-        .{ .x = -1.5, .y = 0.5 },
-    };
-
-    rl.DrawTriangleLines(
-        rl.Vector2Transform(points[0], transform),
-        rl.Vector2Transform(points[1], transform),
-        rl.Vector2Transform(points[2], transform),
-        rl.WHITE,
-    );
-    rl.DrawTriangleLines(
-        rl.Vector2Transform(points[3], transform),
-        rl.Vector2Transform(points[4], transform),
-        rl.Vector2Transform(points[5], transform),
-        rl.WHITE,
-    );
-    rl.DrawTriangleLines(
-        rl.Vector2Transform(points[3], transform),
-        rl.Vector2Transform(points[4], transform),
-        rl.Vector2Transform(points[1], transform),
-        rl.WHITE,
-    );
-    rl.DrawTriangleLines(
-        rl.Vector2Transform(points[3], transform),
-        rl.Vector2Transform(points[1], transform),
-        rl.Vector2Transform(points[0], transform),
-        rl.WHITE,
-    );
-}
-
 const Alien = struct {
     pos: Vec2,
     vel: Vec2 = .{ .x = 0, .y = 0 },
