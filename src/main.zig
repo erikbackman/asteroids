@@ -362,8 +362,8 @@ pub fn checkCollision() !void {
         const a_scale: f32 = @floatFromInt(@intFromEnum(a.scale));
 
         if (rl.CheckCollisionCircles(a.pos, a_scale, ship.pos, ship_scale)) {
-            //ship.dead = true;
-            //break;
+            ship.dead = true;
+            break;
         }
 
         for (state.bullets.items) |*b| {
