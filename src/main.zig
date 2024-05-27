@@ -186,8 +186,6 @@ const Asteroid = struct {
     }
 
     pub fn split(asteroid: Asteroid) !void {
-        //state.random.jump();
-        //var random = state.random.random();
         var vel = rl.Vector2Scale(asteroid.vel, 2);
         for (0..2) |_| {
             const a = .{
