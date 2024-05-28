@@ -253,9 +253,9 @@ const Alien = struct {
         self.cooldown = moveTowards(0, self.cooldown, dt);
     }
 
-    pub fn spawn(pos: Vec2) !void {
-        state.alien.pos = pos;
-        state.alien.dead = false;
+    pub fn spawn(self: *Alien, pos: Vec2) !void {
+        self.pos = pos;
+        self.dead = false;
     }
 };
 
@@ -309,6 +309,14 @@ pub fn updateShip(dt: f32) void {
     ship.pos.y = @mod(ship.pos.y, win_h);
 }
 
+fn updateBullet(index: usize, arr: *std.ArrayList(Bullet)) void {
+    var bullet = &arr.items[index];
+    bullet.pos = rl.Vector2Add(bullet.pos, bullet.vel);
+    bullet.ttl -= 1;
+    if (bullet.ttl <= 0)
+        _ = arr.orderedRemove(index);
+}
+
 pub fn updateBullets() !void {
     if (rl.IsKeyPressed(rl.KEY_SPACE)) {
         try state.bullets.append(.{
@@ -324,23 +332,12 @@ pub fn updateBullets() !void {
 
     var i: usize = 0;
     while (i < state.bullets.items.len) : (i += 1) {
-        var b = &state.bullets.items[i];
-        b.pos = rl.Vector2Add(b.pos, b.vel);
-        b.ttl -= 1;
-        if (b.ttl <= 0) {
-            _ = state.bullets.orderedRemove(i);
-        }
+        updateBullet(i, &state.bullets);
     }
 
-    // TODO: We are doing the same thing here as in the while loop above
     var j: usize = 0;
     while (j < state.enemy_bullets.items.len) : (j += 1) {
-        var b = &state.enemy_bullets.items[j];
-        b.pos = rl.Vector2Add(b.pos, b.vel);
-        b.ttl -= -1;
-        if (b.ttl <= 0) {
-            _ = state.enemy_bullets.orderedRemove(i);
-        }
+        updateBullet(j, &state.enemy_bullets);
     }
 }
 
@@ -411,7 +408,10 @@ pub fn update(dt: f32) !void {
     if (!state.alien.dead) try state.alien.update(dt);
 
     if (state.score > alien_score_threshold and state.alien.dead) {
-        try Alien.spawn(.{ .x = state.random.random().float(f32), .y = state.random.random().float(f32) });
+        try state.alien.spawn(.{
+            .x = state.random.random().float(f32),
+            .y = state.random.random().float(f32),
+        });
     }
 
     try checkCollision();
