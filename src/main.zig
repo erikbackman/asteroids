@@ -29,7 +29,7 @@ var snd_laser: rl.Sound = undefined;
 var snd_thrust: rl.Sound = undefined;
 var snd_music: rl.Music = undefined;
 
-pub fn moveTowards(target: f32, val: f32, delta: f32) f32 {
+fn moveTowards(target: f32, val: f32, delta: f32) f32 {
     if (std.math.sign(val) == -1) {
         const new = val + delta;
         return if (new > target) target else new;
@@ -63,7 +63,7 @@ const State = struct {
     alien: Alien,
     random: std.Random.Xoshiro256,
 
-    pub fn init(allocator: std.mem.Allocator) !State {
+    fn init(allocator: std.mem.Allocator) !State {
         const bullets = std.ArrayList(Bullet).init(allocator);
         const enemy_bullets = std.ArrayList(Bullet).init(allocator);
         const asteroids = std.ArrayList(Asteroid).init(allocator);
@@ -82,13 +82,13 @@ const State = struct {
         };
     }
 
-    pub fn deinit(self: *State) void {
+    fn deinit(self: *State) void {
         self.bullets.deinit();
         self.enemy_bullets.deinit();
         self.asteroids.deinit();
     }
 
-    pub fn reset(self: *State) !void {
+    fn reset(self: *State) !void {
         self.score = 0;
         @memset(&score_str, 0);
         self.death_time = 0;
@@ -121,7 +121,7 @@ const Ship = struct {
         .{ .x = -0.4, .y = 0.5 },
     },
 
-    pub fn draw(self: *Ship, _: f32) void {
+    fn draw(self: *Ship, _: f32) void {
         self.transform = rl.MatrixMultiply(
             rl.MatrixRotate(.{ .x = 0, .y = 0, .z = 1 }, self.rot),
             rl.MatrixMultiply(
@@ -154,7 +154,7 @@ const Asteroid = struct {
     scale: AsteroidScale,
     seed: u32,
 
-    pub fn draw(self: Asteroid) !void {
+    fn draw(self: Asteroid) !void {
         state.random.seed(self.seed);
         var random = state.random.random();
         var pts = try AsteroidPoints.init(0);
@@ -179,7 +179,7 @@ const Asteroid = struct {
         rl.DrawLineStrip(@ptrCast(&pts), sides + 1, rl.WHITE);
     }
 
-    pub fn split(asteroid: Asteroid) !void {
+    fn split(asteroid: Asteroid) !void {
         var vel = rl.Vector2Scale(asteroid.vel, 2);
         for (0..2) |_| {
             const a = .{
@@ -220,7 +220,7 @@ const Alien = struct {
         .{ .x = 1.0, .y = 0.0 },
     },
 
-    pub fn draw(self: Alien) !void {
+    fn draw(self: Alien) !void {
         const t = rl.MatrixMultiply(
             rl.MatrixScale(ship_scale, ship_scale, ship_scale),
             rl.MatrixTranslate(self.pos.x, self.pos.y, 0),
@@ -234,7 +234,7 @@ const Alien = struct {
         rl.DrawLineStrip(&pts, 15, rl.WHITE);
     }
 
-    pub fn update(self: *Alien, dt: f32) !void {
+    fn update(self: *Alien, dt: f32) !void {
         self.pos.x = @mod(self.pos.x + self.vel.x, win_w);
         self.pos.y = @mod(self.pos.y + self.vel.y, win_h);
 
@@ -253,13 +253,13 @@ const Alien = struct {
         self.cooldown = moveTowards(0, self.cooldown, dt);
     }
 
-    pub fn spawn(self: *Alien, pos: Vec2) !void {
+    fn spawn(self: *Alien, pos: Vec2) !void {
         self.pos = pos;
         self.dead = false;
     }
 };
 
-pub fn spawnAsteroids(n: u32, scale: AsteroidScale) !void {
+fn spawnAsteroids(n: u32, scale: AsteroidScale) !void {
     state.random.jump();
     const rng = &state.random;
 
@@ -284,7 +284,7 @@ pub fn spawnAsteroids(n: u32, scale: AsteroidScale) !void {
     }
 }
 
-pub fn updateShip(dt: f32) void {
+fn updateShip(dt: f32) void {
     if (ship.dead) return;
     if (rl.IsKeyDown(rl.KEY_W)) {
         ship.vel = .{
@@ -317,7 +317,7 @@ fn updateBullet(index: usize, arr: *std.ArrayList(Bullet)) void {
         _ = arr.orderedRemove(index);
 }
 
-pub fn updateBullets() !void {
+fn updateBullets() !void {
     if (rl.IsKeyPressed(rl.KEY_SPACE)) {
         try state.bullets.append(.{
             .ttl = 100,
@@ -341,7 +341,7 @@ pub fn updateBullets() !void {
     }
 }
 
-pub fn updateAsteroids() void {
+fn updateAsteroids() void {
     for (state.asteroids.items) |*a| {
         var pos = rl.Vector2Add(a.*.pos, a.*.vel);
         pos.x = @mod(pos.x, win_w);
@@ -350,7 +350,7 @@ pub fn updateAsteroids() void {
     }
 }
 
-pub fn checkCollision() !void {
+fn checkCollision() !void {
     var i: usize = 1;
     const len = state.asteroids.items.len;
     while (i <= len) : (i += 1) {
@@ -390,7 +390,7 @@ pub fn checkCollision() !void {
     }
 }
 
-pub fn update(dt: f32) !void {
+fn update(dt: f32) !void {
     if (ship.dead) {
         state.death_time += 0.5;
         if (state.death_time >= 50) {
@@ -424,7 +424,7 @@ fn drawDeath(_: f32) void {
     const vb: Vec2 = .{ .x = @cos(std.math.pi / 2.0), .y = @sin(std.math.pi / 2.0) };
 
     const transform = struct {
-        pub fn apply(vec: Vec2, vel: Vec2, d: f32) Vec2 {
+        fn apply(vec: Vec2, vel: Vec2, d: f32) Vec2 {
             const t = rl.MatrixMultiply(
                 rl.MatrixRotate(.{ .x = 0, .y = 0, .z = 1 }, ship.rot + d * 0.1),
                 rl.MatrixMultiply(
@@ -455,7 +455,7 @@ fn drawDeath(_: f32) void {
     );
 }
 
-pub fn draw(dt: f32) !void {
+fn draw(dt: f32) !void {
     const len = std.fmt.formatIntBuf(&score_str, state.score, 10, .lower, .{});
     rl.DrawText(@ptrCast(score_str[0..len]), 4, 4, 22, rl.WHITE);
     rl.DrawFPS(win_w - 30, 2);
