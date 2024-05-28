@@ -39,10 +39,6 @@ fn moveTowards(target: f32, val: f32, delta: f32) f32 {
     }
 }
 
-fn makeVec3(vec: Vec2) Vec3 {
-    return .{ .x = vec.x, .y = vec.y, .z = 0 };
-}
-
 const Bullet = struct {
     ttl: i32,
     pos: Vec2,
