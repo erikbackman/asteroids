@@ -39,6 +39,8 @@ fn moveTowards(target: f32, val: f32, delta: f32) f32 {
     }
 }
 
+const Dir = enum { Left, Right };
+
 const Bullet = struct {
     ttl: i32,
     pos: Vec2,
@@ -96,6 +98,105 @@ const State = struct {
         ship.vel = rl.Vector2Zero();
         ship.rot = 0.0;
     }
+
+    fn spawnAsteroids(self: *State, n: u32, scale: AsteroidScale) !void {
+        self.random.jump();
+        const rng = &state.random;
+
+        for (0..n) |_| {
+            const padding: u32 = 50;
+            const max_x = (win_w / 2) - padding;
+            const max_y = (win_h / 2) - padding;
+            const sign1: i32 = std.math.pow(i32, -1, rng.random().intRangeAtMost(i32, 1, 2));
+            const sign2: i32 = std.math.pow(i32, -1, rng.random().intRangeAtMost(i32, 1, 2));
+            const x: f32 = @floatFromInt(rng.random().intRangeAtMost(i32, 0, max_x) * sign1);
+            const y: f32 = @floatFromInt(rng.random().intRangeAtMost(i32, 0, max_y) * sign2);
+            const pos = .{ .x = x, .y = y };
+            const angle = std.math.tau * rng.random().float(f32);
+            const a = .{
+                .pos = pos,
+                .vel = .{ .x = @cos(angle), .y = @sin(angle) },
+                .scale = scale,
+                .seed = rng.random().int(u32),
+            };
+
+            try self.asteroids.append(a);
+        }
+    }
+
+    fn spawnAlien(self: *State) !void {
+        try self.alien.spawn(.{
+            .x = self.random.random().float(f32),
+            .y = self.random.random().float(f32),
+        });
+    }
+
+    fn updateBullet(index: usize, arr: *std.ArrayList(Bullet)) void {
+        var bullet = &arr.items[index];
+        bullet.pos = rl.Vector2Add(bullet.pos, bullet.vel);
+        bullet.ttl -= 1;
+        if (bullet.ttl <= 0)
+            _ = arr.orderedRemove(index);
+    }
+
+    fn update(self: *State) !void {
+        for (state.asteroids.items) |*a| {
+            var pos = rl.Vector2Add(a.*.pos, a.*.vel);
+            pos.x = @mod(pos.x, win_w);
+            pos.y = @mod(pos.y, win_h);
+            a.pos = pos;
+        }
+
+        var i: usize = 0;
+        while (i < state.bullets.items.len) : (i += 1) {
+            State.updateBullet(i, &self.bullets);
+        }
+
+        var j: usize = 0;
+        while (j < state.enemy_bullets.items.len) : (j += 1) {
+            State.updateBullet(j, &self.enemy_bullets);
+        }
+    }
+
+    fn checkCollision(self: *State) !void {
+        var i: usize = 1;
+        const len = self.asteroids.items.len;
+        while (i <= len) : (i += 1) {
+            const j = len - i;
+            const a = self.asteroids.items[j];
+            const a_scale: f32 = @floatFromInt(@intFromEnum(a.scale));
+
+            if (rl.CheckCollisionCircles(a.pos, a_scale, ship.pos, ship_scale)) {
+                ship.dead = true;
+                break;
+            }
+
+            for (self.bullets.items) |*b| {
+                if (rl.CheckCollisionCircles(a.pos, a_scale, b.pos, 5)) {
+                    b.ttl = 0;
+                    self.score += 1;
+
+                    if (a.scale == .large) try a.split();
+                    _ = self.asteroids.orderedRemove(j);
+                }
+            }
+        }
+
+        for (self.bullets.items) |*b| {
+            const a = &self.alien;
+            if (rl.CheckCollisionCircles(b.pos, 5, a.pos, ship_scale)) {
+                a.dead = true;
+                self.score += 5;
+            }
+        }
+
+        for (self.enemy_bullets.items) |*b| {
+            if (rl.CheckCollisionCircles(b.pos, 5, ship.pos, ship_scale)) {
+                ship.dead = true;
+                break;
+            }
+        }
+    }
 };
 
 const Ship = struct {
@@ -117,7 +218,54 @@ const Ship = struct {
         .{ .x = -0.4, .y = 0.5 },
     },
 
-    fn draw(self: *Ship, _: f32) void {
+    fn forward(self: *Ship) void {
+        if (self.dead) return;
+        self.vel = .{
+            .x = ship.speed * @cos(ship.rot - pi_half),
+            .y = ship.speed * @sin(ship.rot - pi_half),
+        };
+        self.thrust = true;
+        if (!rl.IsSoundPlaying(snd_thrust)) {
+            rl.PlaySound(snd_thrust);
+        }
+    }
+
+    fn stop(self: *Ship) void {
+        if (self.dead) return;
+        self.thrust = false;
+    }
+
+    fn rotate(self: *Ship, dir: Dir, dt: f32) void {
+        if (self.dead) return;
+        switch (dir) {
+            .Left => self.rot -= self.rot_speed * dt,
+            .Right => self.rot += self.rot_speed * dt,
+        }
+    }
+
+    fn shoot(self: *Ship) !void {
+        if (self.dead) return;
+        try state.bullets.append(.{
+            .ttl = 100,
+            .pos = self.pos,
+            .vel = .{
+                .x = 10 * @cos(self.rot - pi_half),
+                .y = 10 * @sin(self.rot - pi_half),
+            },
+        });
+        rl.PlaySound(snd_laser);
+    }
+
+    fn update(self: *Ship, dt: f32) void {
+        if (self.dead) return;
+        if (!self.thrust) {
+            self.vel.x = moveTowards(0, ship.vel.x, 0.3 * dt);
+            self.vel.y = moveTowards(0, ship.vel.y, 0.3 * dt);
+        }
+        self.pos = rl.Vector2Add(ship.pos, rl.Vector2Scale(ship.vel, dt));
+        self.pos.x = @mod(ship.pos.x, win_w);
+        self.pos.y = @mod(ship.pos.y, win_h);
+
         self.transform = rl.MatrixMultiply(
             rl.MatrixRotate(.{ .x = 0, .y = 0, .z = 1 }, self.rot),
             rl.MatrixMultiply(
@@ -125,7 +273,9 @@ const Ship = struct {
                 rl.MatrixTranslate(self.pos.x, self.pos.y, 0),
             ),
         );
+    }
 
+    fn draw(self: *Ship, _: f32) void {
         rl.DrawTriangleLines(
             rl.Vector2Transform(self.points[0], self.transform),
             rl.Vector2Transform(self.points[1], self.transform),
@@ -255,137 +405,6 @@ const Alien = struct {
     }
 };
 
-fn spawnAsteroids(n: u32, scale: AsteroidScale) !void {
-    state.random.jump();
-    const rng = &state.random;
-
-    for (0..n) |_| {
-        const padding: u32 = 50;
-        const max_x = (win_w / 2) - padding;
-        const max_y = (win_h / 2) - padding;
-        const sign1: i32 = std.math.pow(i32, -1, rng.random().intRangeAtMost(i32, 1, 2));
-        const sign2: i32 = std.math.pow(i32, -1, rng.random().intRangeAtMost(i32, 1, 2));
-        const x: f32 = @floatFromInt(rng.random().intRangeAtMost(i32, 0, max_x) * sign1);
-        const y: f32 = @floatFromInt(rng.random().intRangeAtMost(i32, 0, max_y) * sign2);
-        const pos = .{ .x = x, .y = y };
-        const angle = std.math.tau * rng.random().float(f32);
-        const a = .{
-            .pos = pos,
-            .vel = .{ .x = @cos(angle), .y = @sin(angle) },
-            .scale = scale,
-            .seed = rng.random().int(u32),
-        };
-
-        try state.asteroids.append(a);
-    }
-}
-
-fn updateShip(dt: f32) void {
-    if (ship.dead) return;
-    if (rl.IsKeyDown(rl.KEY_W)) {
-        ship.vel = .{
-            .x = ship.speed * @cos(ship.rot - pi_half) * dt,
-            .y = ship.speed * @sin(ship.rot - pi_half) * dt,
-        };
-        if (!rl.IsSoundPlaying(snd_thrust)) {
-            rl.PlaySound(snd_thrust);
-        }
-        ship.thrust = true;
-    } else {
-        ship.thrust = false;
-        ship.vel.x = moveTowards(0, ship.vel.x, 0.3 * dt);
-        ship.vel.y = moveTowards(0, ship.vel.y, 0.3 * dt);
-    }
-
-    if (rl.IsKeyDown(rl.KEY_A)) ship.rot -= dt * ship.rot_speed;
-    if (rl.IsKeyDown(rl.KEY_D)) ship.rot += dt * ship.rot_speed;
-
-    ship.pos = rl.Vector2Add(ship.pos, ship.vel);
-    ship.pos.x = @mod(ship.pos.x, win_w);
-    ship.pos.y = @mod(ship.pos.y, win_h);
-}
-
-fn updateBullet(index: usize, arr: *std.ArrayList(Bullet)) void {
-    var bullet = &arr.items[index];
-    bullet.pos = rl.Vector2Add(bullet.pos, bullet.vel);
-    bullet.ttl -= 1;
-    if (bullet.ttl <= 0)
-        _ = arr.orderedRemove(index);
-}
-
-fn updateBullets() !void {
-    if (rl.IsKeyPressed(rl.KEY_SPACE)) {
-        try state.bullets.append(.{
-            .ttl = 100,
-            .pos = ship.pos,
-            .vel = .{
-                .x = 10 * @cos(ship.rot - pi_half),
-                .y = 10 * @sin(ship.rot - pi_half),
-            },
-        });
-        rl.PlaySound(snd_laser);
-    }
-
-    var i: usize = 0;
-    while (i < state.bullets.items.len) : (i += 1) {
-        updateBullet(i, &state.bullets);
-    }
-
-    var j: usize = 0;
-    while (j < state.enemy_bullets.items.len) : (j += 1) {
-        updateBullet(j, &state.enemy_bullets);
-    }
-}
-
-fn updateAsteroids() void {
-    for (state.asteroids.items) |*a| {
-        var pos = rl.Vector2Add(a.*.pos, a.*.vel);
-        pos.x = @mod(pos.x, win_w);
-        pos.y = @mod(pos.y, win_h);
-        a.pos = pos;
-    }
-}
-
-fn checkCollision() !void {
-    var i: usize = 1;
-    const len = state.asteroids.items.len;
-    while (i <= len) : (i += 1) {
-        const j = len - i;
-        const a = state.asteroids.items[j];
-        const a_scale: f32 = @floatFromInt(@intFromEnum(a.scale));
-
-        if (rl.CheckCollisionCircles(a.pos, a_scale, ship.pos, ship_scale)) {
-            ship.dead = true;
-            break;
-        }
-
-        for (state.bullets.items) |*b| {
-            if (rl.CheckCollisionCircles(a.pos, a_scale, b.pos, 5)) {
-                b.ttl = 0;
-                state.score += 1;
-
-                if (a.scale == .large) try a.split();
-                _ = state.asteroids.orderedRemove(j);
-            }
-        }
-    }
-
-    for (state.bullets.items) |*b| {
-        const a = &state.alien;
-        if (rl.CheckCollisionCircles(b.pos, 5, a.pos, ship_scale)) {
-            a.dead = true;
-            state.score += 5;
-        }
-    }
-
-    for (state.enemy_bullets.items) |*b| {
-        if (rl.CheckCollisionCircles(b.pos, 5, ship.pos, ship_scale)) {
-            ship.dead = true;
-            break;
-        }
-    }
-}
-
 fn update(dt: f32) !void {
     if (ship.dead) {
         state.death_time += 0.5;
@@ -393,24 +412,25 @@ fn update(dt: f32) !void {
             ship.dead = false;
             state.death_time = 0;
             try state.reset();
-            try spawnAsteroids(asteroid_init_count, .large);
+            try state.spawnAsteroids(asteroid_init_count, .large);
         }
         return;
     }
 
-    updateShip(dt);
-    try updateBullets();
-    updateAsteroids();
+    ship.update(dt);
+    try state.update();
+
+    if (state.score > alien_score_threshold and state.alien.dead) try state.spawnAlien();
     if (!state.alien.dead) try state.alien.update(dt);
 
-    if (state.score > alien_score_threshold and state.alien.dead) {
-        try state.alien.spawn(.{
-            .x = state.random.random().float(f32),
-            .y = state.random.random().float(f32),
-        });
-    }
+    try state.checkCollision();
+}
 
-    try checkCollision();
+fn handleInput(dt: f32) !void {
+    if (rl.IsKeyDown(rl.KEY_W)) ship.forward() else ship.stop();
+    if (rl.IsKeyDown(rl.KEY_A)) ship.rotate(.Left, dt);
+    if (rl.IsKeyDown(rl.KEY_D)) ship.rotate(.Right, dt);
+    if (rl.IsKeyPressed(rl.KEY_SPACE)) try ship.shoot();
 }
 
 // TODO: This isn't great.
@@ -468,11 +488,7 @@ fn draw(dt: f32) !void {
 
     if (!state.alien.dead) try state.alien.draw();
 
-    if (ship.dead) {
-        drawDeath(dt);
-    } else {
-        ship.draw(dt);
-    }
+    if (ship.dead) drawDeath(dt) else ship.draw(dt);
 }
 
 pub fn main() !void {
@@ -494,7 +510,7 @@ pub fn main() !void {
     ship = Ship{};
     state = try State.init(allocator);
     defer state.deinit();
-    try spawnAsteroids(asteroid_init_count, .large);
+    try state.spawnAsteroids(asteroid_init_count, .large);
 
     rl.InitWindow(win_w, win_h, "Asteroids");
     defer rl.CloseWindow();
@@ -507,9 +523,12 @@ pub fn main() !void {
     while (!rl.WindowShouldClose()) {
         const dt = rl.GetFrameTime();
         rl.UpdateMusicStream(snd_music);
+
+        try handleInput(dt);
+        try update(dt);
+
         rl.BeginDrawing();
         rl.ClearBackground(rl.BLACK);
-        try update(dt);
         try draw(dt);
         rl.EndDrawing();
     }
