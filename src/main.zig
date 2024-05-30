@@ -55,6 +55,7 @@ const AsteroidScale = enum(u32) {
 const State = struct {
     score: u32 = 0,
     death_time: f32 = 0,
+    paused: bool = false,
     bullets: std.ArrayList(Bullet),
     enemy_bullets: std.ArrayList(Bullet),
     asteroids: std.ArrayList(Asteroid),
@@ -408,6 +409,8 @@ const Alien = struct {
 };
 
 fn update(dt: f32) !void {
+    if (state.paused) return drawMenu();
+
     if (ship.dead) {
         state.death_time += 0.5;
         if (state.death_time >= 50) {
@@ -433,6 +436,7 @@ fn handleInput(dt: f32) !void {
     if (rl.IsKeyDown(rl.KEY_A)) ship.rotate(.Left, dt);
     if (rl.IsKeyDown(rl.KEY_D)) ship.rotate(.Right, dt);
     if (rl.IsKeyPressed(rl.KEY_SPACE)) try ship.shoot();
+    if (rl.IsKeyPressed(rl.KEY_Q)) state.paused = !state.paused;
 }
 
 // TODO: This isn't great.
@@ -473,6 +477,13 @@ fn drawDeath(_: f32) void {
     );
 }
 
+fn drawMenu() void {
+    const txt = "Paused";
+    const txt_width: c_int = rl.MeasureText(txt, 24);
+    const x: c_int = @divTrunc((win_w - txt_width), 2);
+    rl.DrawText(txt, x, win_h * 0.3, 24, rl.WHITE);
+}
+
 fn draw(dt: f32) !void {
     const len = std.fmt.formatIntBuf(&score_str, state.score, 10, .lower, .{});
     rl.DrawText(@ptrCast(score_str[0..len]), 4, 4, 22, rl.WHITE);
@@ -499,7 +510,6 @@ pub fn main() !void {
 
     snd_laser = rl.LoadSound("assets/laser.wav");
     defer rl.UnloadSound(snd_laser);
-
     snd_thrust = rl.LoadSound("assets/thrust.wav");
     defer rl.UnloadSound(snd_thrust);
     snd_music = rl.LoadMusicStream("assets/music.mp3");
@@ -517,9 +527,7 @@ pub fn main() !void {
     rl.InitWindow(win_w, win_h, "Asteroids");
     defer rl.CloseWindow();
     rl.SetWindowState(rl.FLAG_WINDOW_RESIZABLE);
-
     rl.SetTargetFPS(60);
-
     rl.PlayMusicStream(snd_music);
 
     while (!rl.WindowShouldClose()) {
