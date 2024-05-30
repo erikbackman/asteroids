@@ -176,7 +176,7 @@ const State = struct {
                     b.ttl = 0;
                     self.score += 1;
 
-                    if (a.scale == .large) try a.split();
+                    if (a.scale == .large) try self.asteroids.appendSlice(&a.split());
                     _ = self.asteroids.orderedRemove(j);
                 }
             }
@@ -325,18 +325,20 @@ const Asteroid = struct {
         rl.DrawLineStrip(@ptrCast(&pts), sides + 1, rl.WHITE);
     }
 
-    fn split(asteroid: Asteroid) !void {
+    fn split(asteroid: Asteroid) [2]Asteroid {
+        var asteroids: [2]Asteroid = undefined;
         var vel = rl.Vector2Scale(asteroid.vel, 2);
-        for (0..2) |_| {
+        for (0..2) |i| {
             const a = .{
                 .pos = asteroid.pos,
                 .vel = vel,
                 .scale = .small,
                 .seed = state.random.random().int(u32),
             };
-            try state.asteroids.append(a);
+            asteroids[i] = a;
             vel = rl.Vector2Rotate(vel, std.math.pi / 4.0);
         }
+        return asteroids;
     }
 };
 
