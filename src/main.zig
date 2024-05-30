@@ -112,16 +112,14 @@ const State = struct {
             const sign2: i32 = std.math.pow(i32, -1, rng.random().intRangeAtMost(i32, 1, 2));
             const x: f32 = @floatFromInt(rng.random().intRangeAtMost(i32, 0, max_x) * sign1);
             const y: f32 = @floatFromInt(rng.random().intRangeAtMost(i32, 0, max_y) * sign2);
-            const pos = .{ .x = x, .y = y };
             const angle = std.math.tau * rng.random().float(f32);
-            const a = .{
-                .pos = pos,
+
+            try self.asteroids.append(.{
+                .pos = .{ .x = x, .y = y },
                 .vel = .{ .x = @cos(angle), .y = @sin(angle) },
                 .scale = scale,
                 .seed = rng.random().int(u32),
-            };
-
-            try self.asteroids.append(a);
+            });
         }
     }
 
